@@ -11,14 +11,12 @@ const router = express.Router()
 
 
 const app = express();
-
-// const corsOptions = {
-//     origin: "http://localhost:3000",
-//     credentials: true,
-//     methods: ['GET', 'POST', 'OPTIONS']
-//   };
-
-
+app.use(cors({
+    origin : true,
+    credentials : true
+}));
+app.use(bodyParser.json());
+app.use(cookieParser());
 app.use(session({
     key: 'is_logined',
     store: new LokiStore(),
@@ -30,14 +28,10 @@ app.use(session({
 const cookieOptions = {
     domain: 'localhost',
     path: '/',
-    //maxAge: 3600000,
     sameSite: 'none',
     httpOnly: true,
     secure: true,       //https 프로토콜에서만 쿠키 전송 가능
 }
-app.use(cors());
-app.use(bodyParser.json());
-app.use(cookieParser());
 
 const mariadb = require('mariadb');
 const { request } = require('express');
@@ -72,22 +66,18 @@ async function asyncFunction(id, pw) {
 
 }
 
-// app.use((req, res, next) => {
-//     next();
-// })
 
 app.get('/logincheck', function (req, res){
     console.log('check')
-    if(!req.cookies){
-        res.status(401).send('로그인 실패')
-        console.log('req.cookies',req.cookies)
-        console.log(req.cookies.is_logined)
-
+    //console.log(req.session)        // cookie: { path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
+    if(!req.cookies.is_logined){
         console.log("로그인 안된 경우")
     }
     else{
-        res.send(req.cookies)
-        console.log(req.cookies)
+        res.send(req.cookies.is_logined)
+        //console.log(req.session.cookie)     //{ path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
+        console.log('user', req.cookies.is_logined)
+
         console.log("로그인 된 경우")
     }
    // console.log(req.headers.cookie)
@@ -97,12 +87,6 @@ app.post('/login', (req, res) => {
     (async () => {
         //const users = asyncFunction('hh','7890')
         //res.send(users)
-        if(req.session.is_logined == true) {
-            //로그인 유저가 존재하는 경우
-            res.send({'msg':'이미 로그인 되어있습니다.'})
-            console.log("이미 로그인 되어있습니다.")
-        }
-
         const {
             ID,
             Password,
@@ -116,13 +100,19 @@ app.post('/login', (req, res) => {
         try {
             conn = await pool.getConnection();
             const sqlResult = await checkLoginFromDB(conn, ID, Password)
+            if(req.cookies.is_logined) {
+                //로그인 유저가 존재하는 경우
+                res.send(JSON.stringify(sqlResult[0]))
+                console.log("이미 로그인 되어있습니다.")
+            }else{
+
             if(sqlResult[0] == undefined){      //로그인 실패
                 res.send({'msg':'아이디나 비밀번호가 틀렸습니다.'})
                 console.log('아이디나 비밀번호가 틀렸습니다.')
             }
             else if(req.body.remember == true){     //로그인 성공(로그인 유지)
                 console.log('로그인 유지');
-                cookieOptions.maxAge = 3600000;
+                cookieOptions.maxAge = 3600000;     //1시간
                 req.session.is_logined = true;
                 req.session.nickname = sqlResult[0].ID;
                 res.cookie('is_logined', sqlResult[0].ID, cookieOptions);  
@@ -132,10 +122,10 @@ app.post('/login', (req, res) => {
                 req.session.is_logined = true;
                 req.session.nickname = sqlResult[0].ID;     
                 res.cookie('is_logined', sqlResult[0].ID, cookieOptions);
-                res.send(req.session)
-                console.log(req.cookies)
+                res.send(JSON.stringify(sqlResult[0]));
                 //console.log('sqlResult', sqlResult[0])          //sqlResult { ID: 'hanju', PW: '1234' }
             }
+        }
             
         } catch (err) {
             console.log(err)
@@ -145,14 +135,12 @@ app.post('/login', (req, res) => {
 })
 
 app.post('/logout', (req, res) => {
-    if(!req.session.is_logined){
-        res.send({'msg': '로그인 되어있지 않습니다.'})
-    }
-    else{
-        res.clearCookie('is_logined',cookieOptions).send("logout");
+    console.log('logout');
+        res.clearCookie('is_logined',cookieOptions);
+        //res.cookie('is_logined','',{maxAge:0});
         req.session.destroy();      
         res.redirect('/');
-    }
+    
 })
 
 app.listen(port, () => console.log(`Server is running on port ${port}...`));
