@@ -6,8 +6,8 @@ const port = 8080;
 const session = require('express-session');
 const LokiStore = require('connect-loki')(session);
 const cookie = require('cookie');
-const cookieParser = require('cookie-parser')
-const router = express.Router()
+const cookieParser = require('cookie-parser');
+const router = express.Router();
 
 
 const app = express();
@@ -15,6 +15,7 @@ app.use(cors({
     origin : true,
     credentials : true
 }));
+
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(session({
@@ -35,13 +36,25 @@ const cookieOptions = {
 
 const mariadb = require('mariadb');
 const { request } = require('express');
+const { default: axios } = require('axios');
 const pool = mariadb.createPool({
     host: '34.64.125.130', 
     user:'root', 
     password: '123456789!',
     database: 'login',
-    connectionLimit: 10
+    connectionLimit: 30
 });
+
+const google = {
+    clientID: '738653071796-55p1gacvo530c29mrkdajf12fi44nnkg.apps.googleusercontent.com',
+    clientSecret: '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'
+}
+const kakao = {
+    clientID: 'e7f0a2350af00b6762aba9343b42f7b2',
+    redirectUri: 'http://localhost:8080/auth/kakao/callback',
+    tokenApiUrl: "https://kauth.kakao.com/oauth/token",
+    grant_type: "authorization_code",
+}
 
 
 async function asyncFunction(id, pw) {
@@ -63,9 +76,18 @@ async function asyncFunction(id, pw) {
         if (conn) conn.release()
         return rows;
     }
-
 }
 
+var checkLoginFromDB = (conn, id, pw) => {
+    return new Promise(
+        async (resolve, reject) => {
+            const sql = "SELECT * FROM user WHERE ID =? AND PW =?; "
+            rows = await conn.query(sql,[id, pw]);
+            //console.log('rows', rows)
+            resolve(rows);
+        }
+    )
+} 
 
 app.get('/logincheck', function (req, res){
     console.log('check')
@@ -143,16 +165,40 @@ app.post('/logout', (req, res) => {
     
 })
 
+app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드를 카카오 서버로 보내고 유효 토큰을 받는다.
+    console.log('kakao');
+    let code = req.query.code;
+    console.log('code',code);
+    try{
+        axios.post(
+            `${kakao.tokenApiUrl}?grant_type=${kakao.grant_type}&client_id=${kakao.clientID}&redirect_uri=${kakao.redirectUri}&code=${code}`
+            , {
+            headers: {
+                'Content-type': 'application/x-www-form-urlencoded;charset=utf-8'
+            }
+        }).then((result)=>{     //토큰
+            console.log('token');
+            console.log(result.data['access_token']);
+
+            //토큰을 통해서 유저 정보 받아오기
+            axios.get('https://kapi.kakao.com/v2/user/me', {
+                headers: {
+                    Authorization: `Bearer ${result.data.access_token}`
+                }
+            }).then((response) => { 
+                console.log(response.data);
+            }).catch(error => {
+                console.log(error);
+            })
+            
+        }).catch(e=> {
+            console.log(e);
+            res.send(e);
+        })
+    }catch(e){
+        console.log(e);
+        res.send(e);
+    }
+})
+
 app.listen(port, () => console.log(`Server is running on port ${port}...`));
-
-
-var checkLoginFromDB = (conn, id, pw) => {
-    return new Promise(
-        async (resolve, reject) => {
-            const sql = "SELECT * FROM user WHERE ID =? AND PW =?; "
-            rows = await conn.query(sql,[id, pw]);
-            //console.log('rows', rows)
-            resolve(rows)
-        }
-    )
-} 
