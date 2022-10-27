@@ -92,13 +92,14 @@ var checkLoginFromDB = (conn, id, pw) => {
 app.get('/logincheck', function (req, res){
     console.log('check')
     //console.log(req.session)        // cookie: { path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
+    console.log(req.cookies.is_logined)
     if(!req.cookies.is_logined){
         console.log("로그인 안된 경우")
     }
     else{
-        res.send(req.cookies.is_logined)
+        res.send(req.cookies.is_logined);
         //console.log(req.session.cookie)     //{ path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
-        console.log('user', req.cookies.is_logined)
+        console.log('user', req.cookies.is_logined)     //user s:T23_ZjWPdrFGyCa1zUO7nxR6g4y_2a7L.gNUUygnZgfYYr1cq/74P7h4SSDmsKftTD77u0kSEJaU
 
         console.log("로그인 된 경우")
     }
@@ -170,7 +171,7 @@ app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드�
     let code = req.query.code;
     console.log('code',code);
     try{
-        axios.post(
+        axios.post(     //토큰 요청
             `${kakao.tokenApiUrl}?grant_type=${kakao.grant_type}&client_id=${kakao.clientID}&redirect_uri=${kakao.redirectUri}&code=${code}`
             , {
             headers: {
@@ -186,19 +187,36 @@ app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드�
                     Authorization: `Bearer ${result.data.access_token}`
                 }
             }).then((response) => { 
-                console.log(response.data);
+            console.log('유저 정보');
+            console.log(response.data);
+            req.session.is_logined = true;
+            req.session.nickname = response.data.kakao_account.email;
+            res.cookie('is_logined', response.data.kakao_account.email, cookieOptions);  
+        
+            const html = `<html>
+                            <script>
+                                function gotoMain() {
+                                    window.location = 'http://localhost:3000'
+                                }
+                                gotoMain();
+                            </script>
+                        </html>`
+            res.send(html);
+
+
             }).catch(error => {
                 console.log(error);
             })
             
         }).catch(e=> {
             console.log(e);
-            res.send(e);
         })
     }catch(e){
         console.log(e);
-        res.send(e);
+        
     }
 })
+
+
 
 app.listen(port, () => console.log(`Server is running on port ${port}...`));
