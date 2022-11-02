@@ -57,6 +57,11 @@ const kakao = {
     grant_type: "authorization_code",
     logoutUri: 'http://localhost:8091/auth/kakao/logout'
 }
+const naver = {
+    clientID:'vX4A7h0O5FfuRH_3wyPn',
+    redirectUri: 'http://localhost:8091/auth/naver/callback',
+
+}
 
 
 async function asyncFunction(id, pw) {
@@ -94,12 +99,12 @@ var checkLoginFromDB = (conn, id, pw) => {
 app.get('/logincheck', function (req, res){
     console.log('check')
     //console.log(req.session)        // cookie: { path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
-    console.log(req.cookies.is_logined)
-    if(!req.cookies.is_logined){
+    console.log(req.session.is_logined)
+    if(req.session.is_logined != true){
         console.log("로그인 안된 경우");
     }
     else{
-        res.send(req.cookies.is_logined);
+        res.send(req.session.is_logined);
         //console.log(req.session.cookie)     //{ path: '/', _expires: null, originalMaxAge: null, httpOnly: true }
         console.log('user', req.cookies.is_logined)     //user s:T23_ZjWPdrFGyCa1zUO7nxR6g4y_2a7L.gNUUygnZgfYYr1cq/74P7h4SSDmsKftTD77u0kSEJaU
 
@@ -163,18 +168,16 @@ app.post('/logout', (req, res) => {
     console.log('logout');
     //res.clearCookie('is_logined');
     //res.cookie('is_logined','',{maxAge:0});
-    req.session.destroy();    
-    //req.session= null;
- 
+    req.session.destroy(); 
     const html = `<html>
-                            <script>
-                                function gotoMain() {
-                                    window.location = 'http://localhost:8091'
-                                }
-                                gotoMain();
-                            </script>
-                        </html>`
-            res.send(html);
+                        <script>
+                            function gotoMain() {
+                                window.location = 'http://localhost:8091'
+                            }
+                            gotoMain();
+                        </script>
+                    </html>`
+    res.send(html);
 })
 
 app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드를 카카오 서버로 보내고 유효 토큰을 받는다.
@@ -203,7 +206,7 @@ app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드�
             req.session.is_logined = true;
             req.session.nickname = response.data.kakao_account.email;
             cookieOptions.maxAge = 3600000;     //1시간
-            res.cookie('is_logined', response.data.kakao_account.email, cookieOptions);
+            //res.cookie('is_logined', response.data.kakao_account.email, cookieOptions);
         
             const html = `<html>
                             <script>
