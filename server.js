@@ -46,21 +46,18 @@ const pool = mariadb.createPool({
     connectionLimit: 30
 });
 
-const google = {
-    clientID: '738653071796-55p1gacvo530c29mrkdajf12fi44nnkg.apps.googleusercontent.com',
-    clientSecret: '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'
-}
 const kakao = {
     clientID: 'e7f0a2350af00b6762aba9343b42f7b2',
     redirectUri: 'http://localhost:8091/auth/kakao/callback',
     tokenApiUrl: "https://kauth.kakao.com/oauth/token",
-    grant_type: "authorization_code",
-    logoutUri: 'http://localhost:8091/auth/kakao/logout'
+    grant_type: "authorization_code"
 }
 const naver = {
     clientID:'vX4A7h0O5FfuRH_3wyPn',
     redirectUri: 'http://localhost:8091/auth/naver/callback',
-
+    client_secret: 'SD400M7T1W',
+    tokenApiUrl: 'https://nid.naver.com/oauth2.0/token',
+    grant_type: 'authorization_code'
 }
 
 
@@ -205,8 +202,6 @@ app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드�
             console.log(response.data);
             req.session.is_logined = true;
             req.session.nickname = response.data.kakao_account.email;
-            cookieOptions.maxAge = 3600000;     //1시간
-            //res.cookie('is_logined', response.data.kakao_account.email, cookieOptions);
         
             const html = `<html>
                             <script>
@@ -231,18 +226,56 @@ app.get('/auth/kakao/callback', function (req, res, next) {     //인가코드�
     }
 })
 
-// app.get('auth/kakao/logout',  function (req, res) {
-//     const html = `<html>
-//                             <script>
-//                                 function gotoMain() {
-//                                     window.location = 'http://localhost:8091'
-//                                 }
-//                                 gotoMain();
-//                             </script>
-//                         </html>`
-//             res.send(html);
 
-// } )
+app.get('/auth/naver/callback', function (req, res) {     //인가코드를 네이버 서버로 보내고 유효 토큰을 받는다.
+    console.log('naver');
+    let code = req.query.code;
+    let state = req.query.state;
+    console.log('code',code);
+    try{
+        axios.post(     //토큰 요청
+            `${naver.tokenApiUrl}?grant_type=${naver.grant_type}&client_id=${naver.clientID}&client_secret=${naver.client_secret}&redirect_uri=${naver.redirectUri}&code=${code}&state=${state}`
+            , {
+            headers: {
+                'Content-type': 'text/html;charset=utf-8'
+            }
+        }).then((result)=>{     //토큰
+            console.log('token');
+            console.log(result.data['access_token']);
+
+            //토큰을 통해서 유저 정보 받아오기
+            axios.get('https://openapi.naver.com/v1/nid/me', {
+                headers: {
+                    Authorization: `Bearer ${result.data.access_token}`
+                }
+            }).then((response) => { 
+            console.log('유저 정보');
+            console.log(response.data);
+            req.session.is_logined = true;
+            req.session.nickname = response.data.name;
+        
+            const html = `<html>
+                            <script>
+                                function gotoMain() {
+                                    window.location = 'http://localhost:8091'
+                                }
+                                gotoMain();
+                            </script>
+                        </html>`
+            res.send(html);
+
+            }).catch(error => {
+                console.log(error);
+            })
+            
+        }).catch(e=> {
+            console.log(e);
+        })
+    }catch(e){
+        console.log(e);
+        
+    }
+})
 
 
 
